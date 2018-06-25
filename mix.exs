@@ -24,8 +24,7 @@ defmodule JwksRsa.MixProject do
     [
       {:cachex, "~> 3.0"},
       {:httpoison, "~> 1.2"},
-      {:jason, "~> 1.0"},
-      {:jose, "~> 1.8"},
+      {:poison, "~> 3.1"},
       {:joken, "~> 1.5"}
     ]
   end

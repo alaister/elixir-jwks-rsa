@@ -3,6 +3,39 @@ defmodule JwksRsa do
   Documentation for JwksRsa.
   """
 
+  import Joken, only: [token: 1, peek_header: 1, rs256: 1]
+
+  @doc """
+  Gets the RS256 Joken signer from a jwt
+
+  ## Examples
+
+      iex> JwksRsa.get_joken_signer("xxx.xxxx.xxx")
+      %Joken.Signer{jwk: %{...}, jws: %{...}}
+  """
+  def get_joken_signer(jwt) do
+    kid =
+      jwt
+      |> token
+      |> peek_header
+      |> Map.get("kid")
+
+    case get_signing_key(kid) do
+      {:ok, key} ->
+        {:ok, rs256(key)}
+
+      {:error, :not_found} ->
+        with {:ok, jwks} <- get_jwks(),
+             {:ok, _keys} <- cache_signing_keys(jwks),
+             {:ok, key} <- get_signing_key(kid) do
+          {:ok, rs256(key)}
+        else
+          error ->
+            error
+        end
+    end
+  end
+
   @doc """
   Get JWKS from HTTP endpoint.
 
@@ -27,8 +60,14 @@ defmodule JwksRsa do
     jwks_uri = Application.get_env(:jwks_rsa, :jwks_uri)
 
     with {:ok, response} <- HTTPoison.get(jwks_uri),
-         {:ok, body} <- Jason.decode(response.body) do
+         {:ok, body} <- Poison.decode(response.body) do
       {:ok, body["keys"]}
+    else
+      {:error, %HTTPoison.Error{} = _error} ->
+        {:error, :failed_fetching_jwks}
+
+      _ ->
+        {:error, :failed_parsing_jwks_json}
     end
   end
 
@@ -94,14 +133,18 @@ defmodule JwksRsa do
       }
   """
   def get_signing_key(kid) do
-    with {:ok, keys} <- Cachex.get(:jwks_rsa_cache, "signing_keys") do
-      case Enum.find(keys, &(&1["kid"] == kid)) do
-        nil ->
-          {:error, :not_found}
+    case Cachex.get(:jwks_rsa_cache, "signing_keys") do
+      {:ok, nil} ->
+        {:error, :not_found}
 
-        key ->
-          {:ok, key}
-      end
+      {:ok, keys} ->
+        case Enum.find(keys, &(&1["kid"] == kid)) do
+          nil ->
+            {:error, :not_found}
+
+          key ->
+            {:ok, key}
+        end
     end
   end
 end

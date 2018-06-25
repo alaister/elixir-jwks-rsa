@@ -3,6 +3,9 @@
 ## WIP
 
 **TODO: Add description**
+**TODO: Better Caching**
+**TODO: Rate Limiting**
+**TODO: Tests**
 
 ## Installation
 
